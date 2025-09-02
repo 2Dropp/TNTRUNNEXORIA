@@ -1,0 +1,9 @@
+name: TNTTAG
+version: '1.0'
+main: org.gorjue.tnt.Main
+api-version: '1.21'
+commands:
+  tnt:
+    description: Controla el evento de TNT Tag
+    usage: /tnt start
+    permission: tnt.use
