@@ -39,7 +39,7 @@ public class Main extends JavaPlugin {
         World world = Bukkit.getWorld("world");
         if (world == null) return;
         world.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, true);
-        world.setDifficulty(Difficulty.PEACEFUL);
+        world.setDifficulty(Difficulty.HARD);
         world.setGameRule(GameRule.SEND_COMMAND_FEEDBACK, false);
         world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
     }

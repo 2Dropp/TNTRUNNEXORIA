@@ -4,6 +4,7 @@ import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -12,6 +13,7 @@ import org.bukkit.World;
 import org.bukkit.boss.BarColor;
 import org.bukkit.boss.BarStyle;
 import org.bukkit.boss.BossBar;
+import org.bukkit.entity.Firework;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -24,6 +26,7 @@ import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.FireworkMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -222,10 +225,9 @@ public class PlayerEvents implements Listener {
         List<Player> playersToExplode = new ArrayList<>(playersWithBomb);
         for (Player p : playersToExplode) {
             if (p.isOnline() && alivePlayers.contains(p)) {
-                // Modificado para usar una explosión en lugar de setHealth
                 Location loc = p.getLocation();
                 World world = loc.getWorld();
-                world.createExplosion(loc, 4.0f, false, false);
+                world.createExplosion(loc, 4.0f, true, false); // Cambiado a 'true' para que cause daño a entidades.
                 world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 1.0f);
             }
         }
@@ -254,6 +256,39 @@ public class PlayerEvents implements Listener {
                 }
 
                 Bukkit.broadcastMessage(ChatColor.YELLOW.toString() + ChatColor.BOLD + "¡" + winner.getName() + " HA GANADO!");
+
+                // ** Lógica para los fuegos artificiales **
+                new BukkitRunnable() {
+                    int fireworks = 0;
+
+                    @Override
+                    public void run() {
+                        if (fireworks >= 10 || !winner.isOnline()) {
+                            this.cancel();
+                            return;
+                        }
+
+                        // Lanza el cohete justo encima del ganador
+                        Location loc = winner.getLocation().add(0, 2, 0);
+                        Firework firework = (Firework) loc.getWorld().spawn(loc, Firework.class);
+                        FireworkMeta meta = firework.getFireworkMeta();
+
+                        meta.addEffect(
+                                org.bukkit.FireworkEffect.builder()
+                                        .with(org.bukkit.FireworkEffect.Type.BALL_LARGE)
+                                        .withColor(Color.YELLOW, Color.AQUA)
+                                        .withFade(Color.WHITE)
+                                        .trail(true)
+                                        .build()
+                        );
+                        meta.setPower(1); // Potencia del cohete
+
+                        firework.setFireworkMeta(meta);
+
+                        fireworks++;
+                    }
+                }.runTaskTimer(plugin, 20L, 20L); // Inicia después de 1 segundo (20 ticks), y se repite cada segundo
+
             } else {
                 Bukkit.broadcastMessage(ChatColor.RED + "¡El juego ha terminado sin un ganador!");
             }

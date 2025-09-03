@@ -197,38 +197,21 @@ public class Habilidades implements Listener {
                 player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 20 * 10, 3));
                 player.playSound(player.getLocation(), Sound.ENTITY_BAT_TAKEOFF, 1.0f, 1.0f);
             } else if (displayName.contains(ChatColor.AQUA + "Casco Antiexplosiones")) {
-                antiExplosionPlayers.add(player);
-                player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 1.0f, 1.0f);
-                player.sendMessage(ChatColor.AQUA + "¡Tu casco antiexplosiones te protegerá por 5 segundos!");
-
-                // Añadir el efecto de suerte
+                // Ahora el casco da el efecto de suerte para que el método onBombPassAttempt lo detecte
                 player.addPotionEffect(new PotionEffect(PotionEffectType.LUCK, 20 * 5, 1));
-
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        antiExplosionPlayers.remove(player);
-                        player.sendMessage(ChatColor.RED + "Tu casco antiexplosiones ha caducado.");
-                    }
-                }.runTaskLater(plugin, 20 * 5);
+                player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 1.0f, 1.0f);
+                player.sendMessage(ChatColor.AQUA + "¡Tu casco antiexplosiones te protegerá de recibir la bomba por 5 segundos!");
             }
 
             event.getItem().remove();
         }
     }
 
-    @EventHandler
-    public void onPlayerDamage(EntityDamageEvent event) {
-        if (event.getEntity() instanceof Player) {
-            Player player = (Player) event.getEntity();
-            if (event.getCause() == EntityDamageEvent.DamageCause.BLOCK_EXPLOSION ||
-                    event.getCause() == EntityDamageEvent.DamageCause.ENTITY_EXPLOSION) {
-                if (antiExplosionPlayers.contains(player)) {
-                    event.setCancelled(true);
-                }
-            }
-        }
-    }
+    // El evento onPlayerDamage ya no es necesario para la nueva funcionalidad del casco.
+    // @EventHandler
+    // public void onPlayerDamage(EntityDamageEvent event) {
+    //     ...
+    // }
 
     // Nuevo método para manejar el intento de pasar la bomba.
     // Debes llamar a este método desde la clase donde se pasa la bomba.
