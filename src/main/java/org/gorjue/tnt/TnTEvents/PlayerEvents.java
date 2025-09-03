@@ -136,7 +136,7 @@ public class PlayerEvents implements Listener {
             player.getInventory().setHelmet(new ItemStack(Material.TNT));
             setSpeed(player, 3);
             player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, Integer.MAX_VALUE, 0, false, false)); // Le da el efecto de glowing
-            Bukkit.broadcastMessage(ChatColor.GOLD + "¡" + player.getName() + " tiene la bomba ahora!");
+            Bukkit.broadcastMessage("\uE000 " + ChatColor.GOLD + "¡" + player.getName() + " tiene la bomba ahora!");
         }
     }
 
@@ -435,6 +435,7 @@ public class PlayerEvents implements Listener {
 
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
+        event.getDrops().clear();
         if (!gameInProgress) return;
         Player player = event.getEntity();
         event.setDeathMessage(null);
