@@ -15,6 +15,8 @@ import org.bukkit.boss.BossBar;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -31,6 +33,8 @@ import org.gorjue.tnt.Perks.Habilidades; // Importa la clase Habilidades
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class PlayerEvents implements Listener {
 
@@ -45,9 +49,15 @@ public class PlayerEvents implements Listener {
     private BossBar bossBar;
     private final Habilidades habilidades;
 
+    // Variables para la nueva funcionalidad
+    private final Map<Player, Location> lastLocations = new HashMap<>();
+    private final Map<Player, Integer> stillTime = new HashMap<>();
+    private BukkitRunnable monitoringTask;
+
     public PlayerEvents(JavaPlugin plugin) {
         this.plugin = plugin;
         this.bossBar = Bukkit.createBossBar(ChatColor.GOLD + "Jugadores Vivos: 0", BarColor.GREEN, BarStyle.SOLID);
+        // Pasa 'plugin' y una referencia a sí mismo para que Habilidades pueda acceder a playersWithBomb
         this.habilidades = new Habilidades(plugin);
     }
 
@@ -87,6 +97,7 @@ public class PlayerEvents implements Listener {
 
         // Iniciar el sistema de perks
         habilidades.iniciarSistemaPerks();
+        startMonitoring(); // Iniciar el monitoreo de corredores
 
         int initialBombs = Math.max(1, alivePlayers.size() / 10);
 
@@ -98,7 +109,9 @@ public class PlayerEvents implements Listener {
     }
 
     private void assignBombs(int numBombs) {
+        // Quitamos la bomba de todos los jugadores antes de reasignarlas
         for (Player p : Bukkit.getOnlinePlayers()) {
+            removeBombFromPlayer(p); // Llama al método para eliminar la bomba y el glowing
             clearHotbar(p);
             setSpeed(p, 2);
             p.getInventory().setHelmet(null);
@@ -109,9 +122,7 @@ public class PlayerEvents implements Listener {
         for (int i = 0; i < numBombs; i++) {
             if (i < alivePlayers.size()) {
                 Player p = alivePlayers.get(i);
-                playersWithBomb.add(p);
-                p.getInventory().setHelmet(new ItemStack(Material.TNT));
-                setSpeed(p, 3);
+                giveBombToPlayer(p); // Llama al método para dar la bomba y el glowing
             }
         }
     }
@@ -121,6 +132,7 @@ public class PlayerEvents implements Listener {
             playersWithBomb.add(player);
             player.getInventory().setHelmet(new ItemStack(Material.TNT));
             setSpeed(player, 3);
+            player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, Integer.MAX_VALUE, 0, false, false)); // Le da el efecto de glowing
             Bukkit.broadcastMessage(ChatColor.GOLD + "¡" + player.getName() + " tiene la bomba ahora!");
         }
     }
@@ -130,6 +142,7 @@ public class PlayerEvents implements Listener {
             playersWithBomb.remove(player);
             player.getInventory().setHelmet(null);
             setSpeed(player, 2);
+            player.removePotionEffect(PotionEffectType.GLOWING); // Le quita el efecto de glowing
         }
     }
 
@@ -200,7 +213,7 @@ public class PlayerEvents implements Listener {
     }
 
     private void playNoteSound() {
-        for (Player p : playersWithBomb) {
+        for (Player p : Bukkit.getOnlinePlayers()) {
             p.playSound(p.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 1.0f);
         }
     }
@@ -209,7 +222,11 @@ public class PlayerEvents implements Listener {
         List<Player> playersToExplode = new ArrayList<>(playersWithBomb);
         for (Player p : playersToExplode) {
             if (p.isOnline() && alivePlayers.contains(p)) {
-                p.setHealth(0.0);
+                // Modificado para usar una explosión en lugar de setHealth
+                Location loc = p.getLocation();
+                World world = loc.getWorld();
+                world.createExplosion(loc, 4.0f, false, false);
+                world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 1.0f);
             }
         }
     }
@@ -220,9 +237,22 @@ public class PlayerEvents implements Listener {
             if (countdownTask != null) {
                 countdownTask.cancel();
             }
+            stopMonitoring(); // Detener el monitoreo de corredores
 
             if (alivePlayers.size() == 1) {
                 Player winner = alivePlayers.get(0);
+
+                // Enviar el título y subtítulo a todos los jugadores
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    p.sendTitle(
+                            ChatColor.GREEN.toString() + ChatColor.BOLD + "GANADOR",
+                            ChatColor.YELLOW + "¡" + winner.getName() + " ha ganado!",
+                            10,  // Fade in (ticks)
+                            70,  // Stay (ticks)
+                            20   // Fade out (ticks)
+                    );
+                }
+
                 Bukkit.broadcastMessage(ChatColor.YELLOW.toString() + ChatColor.BOLD + "¡" + winner.getName() + " HA GANADO!");
             } else {
                 Bukkit.broadcastMessage(ChatColor.RED + "¡El juego ha terminado sin un ganador!");
@@ -233,12 +263,13 @@ public class PlayerEvents implements Listener {
 
             for (Player p : Bukkit.getOnlinePlayers()) {
                 p.removePotionEffect(PotionEffectType.SPEED);
+                p.removePotionEffect(PotionEffectType.GLOWING); // Eliminar el glowing al final
             }
 
             bossBar.removeAll();
             bossBar.setVisible(false);
 
-            habilidades.detenerSistemaPerks(); // Detener el sistema de perks al final del juego
+            habilidades.detenerSistemaPerks();
         } else {
             int nextBombs = Math.max(1, alivePlayers.size() / 10);
             assignBombs(nextBombs);
@@ -271,6 +302,76 @@ public class PlayerEvents implements Listener {
         }
     }
 
+    // Método para iniciar el monitoreo de jugadores quietos
+    private void startMonitoring() {
+        if (monitoringTask != null) {
+            monitoringTask.cancel();
+        }
+
+        lastLocations.clear();
+        stillTime.clear();
+
+        monitoringTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!gameInProgress) {
+                    return;
+                }
+
+                for (Player player : plugin.getServer().getOnlinePlayers()) {
+                    if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE) {
+                        continue;
+                    }
+                    if (playersWithBomb.contains(player)) {
+                        continue;
+                    }
+
+                    Location currentLocation = player.getLocation();
+                    Location lastLocation = lastLocations.get(player);
+
+                    if (lastLocation == null) {
+                        lastLocations.put(player, currentLocation);
+                        stillTime.put(player, 0);
+                        continue;
+                    }
+
+                    if (!currentLocation.getBlock().equals(lastLocation.getBlock())) {
+                        stillTime.put(player, 0);
+                        lastLocations.put(player, currentLocation);
+                    } else {
+                        int time = stillTime.getOrDefault(player, 0) + 1;
+                        stillTime.put(player, time);
+
+                        if (time >= 15) {
+                            player.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, 20 * 15, 0));
+                        }
+                    }
+                }
+            }
+        };
+        monitoringTask.runTaskTimer(plugin, 0L, 20L);
+    }
+
+    // Método para detener el monitoreo de jugadores quietos
+    private void stopMonitoring() {
+        if (monitoringTask != null) {
+            monitoringTask.cancel();
+            monitoringTask = null;
+        }
+        lastLocations.clear();
+        stillTime.clear();
+    }
+
+    // Método para que otras clases puedan verificar el estado del juego
+    public boolean isGameInProgress() {
+        return gameInProgress;
+    }
+
+    // Método para que otras clases puedan acceder a la lista de jugadores con bomba
+    public List<Player> getPlayersWithBomb() {
+        return playersWithBomb;
+    }
+
     // --- Event Handlers ---
 
     @EventHandler
@@ -282,9 +383,17 @@ public class PlayerEvents implements Listener {
             Player victim = (Player) event.getEntity();
 
             if (playersWithBomb.contains(damager) && alivePlayers.contains(victim)) {
-                removeBombFromPlayer(damager);
-                clearHotbar(damager);
-                giveBombToPlayer(victim);
+                // Llama a onBombPassAttempt de la clase Habilidades
+                boolean canPass = habilidades.onBombPassAttempt(damager, victim);
+
+                if (canPass) {
+                    removeBombFromPlayer(damager);
+                    clearHotbar(damager);
+                    giveBombToPlayer(victim);
+                } else {
+                    // Cancela el evento de daño si el pase fue bloqueado
+                    event.setCancelled(true);
+                }
             }
         }
     }
@@ -313,6 +422,7 @@ public class PlayerEvents implements Listener {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             player.setGameMode(GameMode.SPECTATOR);
             player.removePotionEffect(PotionEffectType.SPEED);
+            player.removePotionEffect(PotionEffectType.GLOWING);
         }, 1L);
 
         checkGameEnd();
@@ -334,6 +444,7 @@ public class PlayerEvents implements Listener {
 
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
+        event.getPlayer().addPotionEffect(new PotionEffect(PotionEffectType.SATURATION, 999999999, 2));
         if (gameInProgress) {
             event.getPlayer().sendMessage(ChatColor.RED + "Hay un juego de TNT Tag en curso. Por favor, espera a que termine.");
             event.getPlayer().setGameMode(GameMode.SPECTATOR);
@@ -353,5 +464,15 @@ public class PlayerEvents implements Listener {
         if (gameInProgress) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler
+    public void onBlockPlace(BlockPlaceEvent event) {
+        event.setCancelled(true);
+    }
+
+    @EventHandler
+    public void onBlockBreak(BlockBreakEvent event) {
+        event.setCancelled(true);
     }
 }

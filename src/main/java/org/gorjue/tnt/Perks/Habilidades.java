@@ -200,6 +200,10 @@ public class Habilidades implements Listener {
                 antiExplosionPlayers.add(player);
                 player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_GENERIC, 1.0f, 1.0f);
                 player.sendMessage(ChatColor.AQUA + "¡Tu casco antiexplosiones te protegerá por 5 segundos!");
+
+                // Añadir el efecto de suerte
+                player.addPotionEffect(new PotionEffect(PotionEffectType.LUCK, 20 * 5, 1));
+
                 new BukkitRunnable() {
                     @Override
                     public void run() {
@@ -224,5 +228,18 @@ public class Habilidades implements Listener {
                 }
             }
         }
+    }
+
+    // Nuevo método para manejar el intento de pasar la bomba.
+    // Debes llamar a este método desde la clase donde se pasa la bomba.
+    public boolean onBombPassAttempt(Player giver, Player receiver) {
+        // Comprobar si el jugador que recibe tiene el efecto de Luck
+        if (receiver.hasPotionEffect(PotionEffectType.LUCK)) {
+            // Mandar mensaje a ambos jugadores
+            giver.sendMessage(ChatColor.RED + "¡" + receiver.getName() + " está protegido por el casco!, ¡no le puedes pasar la bomba!");
+            receiver.sendMessage(ChatColor.AQUA + "¡Tu casco antiexplosiones te ha protegido de recibir la bomba de " + giver.getName() + "!");
+            return false; // Retorna falso para indicar que el pase fue bloqueado
+        }
+        return true; // Retorna verdadero si el pase puede proceder
     }
 }

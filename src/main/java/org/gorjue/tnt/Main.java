@@ -1,8 +1,13 @@
 package org.gorjue.tnt;
 
+import org.bukkit.Bukkit;
+import org.bukkit.Difficulty;
+import org.bukkit.GameRule;
+import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.gorjue.tnt.Perks.Habilidades;
 import org.gorjue.tnt.TnTEvents.PlayerEvents;
+import org.gorjue.tnt.TnTEvents.TabCompleter;
 import org.gorjue.tnt.TnTEvents.TntCommand;
 
 public class Main extends JavaPlugin {
@@ -20,7 +25,8 @@ public class Main extends JavaPlugin {
         habilidades = new Habilidades(this);
         getServer().getPluginManager().registerEvents(habilidades, this);        // Registra el comando /tnt
         getCommand("tnt").setExecutor(new TntCommand(playerEvents));
-
+        getCommand("tnt").setTabCompleter(new TabCompleter(this));
+        initPluginGamerules();
         getLogger().info("TNTTag ha sido activado. ¡Que comience la diversión!");
     }
 
@@ -28,4 +34,14 @@ public class Main extends JavaPlugin {
     public void onDisable() {
         getLogger().info("TNTTag ha sido desactivado. ¡Hasta la próxima!");
     }
+
+    public void initPluginGamerules() {
+        World world = Bukkit.getWorld("world");
+        if (world == null) return;
+        world.setGameRule(GameRule.DO_IMMEDIATE_RESPAWN, true);
+        world.setDifficulty(Difficulty.PEACEFUL);
+        world.setGameRule(GameRule.SEND_COMMAND_FEEDBACK, false);
+        world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
+    }
+
 }
